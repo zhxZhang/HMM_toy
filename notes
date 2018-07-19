@@ -1,0 +1,50 @@
+client 建立graph并且和cluster交互 / 和Sever是m2n的关系
+	cluster = jobs + tasks
+jobs 一般跑在不同的machine或者是GPU上 / 有不同的大功能，例如ps, worker
+tasks 是jobs包含的处理不同的具体功能的对象 / 对应不同的进程
+Server 是cluster类的成员，并且引入了更多的对象，worker service-执行图的部分 & master service-开启会话.
+	server.target主要是喂给sess，联系一个会话和一个server
+
+对于每个task都申明一遍sever很麻烦，因此可以换成如下方式：
+	只声明一次（模型文件外）并可以直接用多次调用.py文件
+
+tf.train.replica_device_setter(
+    ps_tasks=0,
+    ps_device='/job:ps',
+    worker_device='/job:worker',
+    merge_devices=True,
+    cluster=None,
+    ps_ops=None,
+    ps_strategy=None
+)
+ps_device指定的job会把之后定义的模型的op会放到参数服务器，默认的策略ps_strategy是轮替，可以弄成贪心或者自定义。
+ps_tasks就是这个参数服务器job上面有多少个任务定义。如果给了cluster，这个值可省略。
+ps_ops可以自定义放进ps的op操作，若省略就是标准记录里面的op操作。
+return device的一个函数
+（目前理解：对所有的work / ps都会记录一个新的task，也就是给每个var fork一个进程。）
+
+
+
+1.in-graph
+	构建单个图，variables被放到ps job,计算op被放到worker job.
+	数据分发在同一节点，即只有ps job负责给出数据和接受数据。其他的worker节点就直接join阻塞之后（等待下一个任务，join完这个线程的逻辑已经结束了，下一个任务怎么唤醒？）
+2.between-graph  
+	对per task构建graph，参数通过ps job声明 且必须用tf.train.replica_device_setter（？这里是直接的读取关系还是每一个地方都保存一个ps的副本并实时更新）
+	数据不需要分发给worker，各个task都独立计算，然后再发送给ps job做更新。
+	不需要有大量的分发数据的通信，TB级数据适用。
+
+3.asynchronous train. 
+	兼容in/between模式，graph之间不存在相互作用，都是单独进行训练。（？怎么理解）
+	
+4.synchronous train. 
+	in模式，用梯度平均
+	between模式，tf.train.SyncReplicasOptimizer来做异步训练梯度的获取并apply
+
+
+分布式架构：
+1.ps架构，分为worker和param sever. 前者做op，后者做参数储存和更新
+2.Ring-allreduce架构，所有的都gpu worker拼成一个ring的形式（？具体操作）
+
+1. 为什么在外部的时候需要让ps的job.join()—
+	后面调用的方式是直接用
+2.
