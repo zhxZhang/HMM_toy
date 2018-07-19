@@ -1,0 +1,7 @@
+# notes for home credit
+
+# steps in EDA: 
+
+1.find NAs and why
+	a.percent
+	b.devide into levels and save as csv docs for handling.
