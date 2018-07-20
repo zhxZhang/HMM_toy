@@ -3,5 +3,85 @@
 # steps in EDA: 
 
 1.find NAs and why
-	a.percent
+	a.percent count
 	b.devide into levels and save as csv docs for handling.
+	conds and methods:
+		m1.Save all derived vars for per missing data, finally choose one with highest explanation value (??exp count process).
+		m2.Chi-square test. find whether vars with missing data are similar
+			（具体的证明?)
+			适合分类变量做检验，类之间需要独立（不独立怎么做？）
+			分级变量不适合（用什么检验？）
+			
+			小数据量要求不严格。因为随机性因素很大，例如n=15时候无法拒绝，但如果n=75就可以很好的拒绝原假设。
+			大数据量要求过于严格。即使是实用性看来可以接受的，统计量也会加以拒绝。
+				——因此如果大数据量下被拒绝，需要做进一步的检验（如何做？）
+
+		Cond1. Missing data < 5:
+			If using Tree model: 
+				m3 Keep it. 
+			else using LR / SVM, which are highly sensitive to missing data: 
+				m3 Methods including EM, Expetation, knn, random forest, 999, interpolation. (???Compare them)
+
+
+
+
+		Cond2. CORR with other data?
+			m4. 即使发现了强相关，那如何做预测？
+					回归，（线性关系，如果可以达到R方>0.7的效果可以接受）
+
+
+
+均值填充
+	不适用分类变量，因为均值可能没有分类意义。
+	适用少量缺失。大量缺失情况下用，会导致方差变小，减小整体的信息量。
+		例：缺失值=50%，方差为原来70%。缺失10%,方差损失5%。
+	优点在于不会改变样本均值
+	会改变样本偏度（具体不知道改变情况，需要画图判断）
+
+插值
+	连续的时序变量出现缺失时考虑
+
+相关性
+	分类变量——chi square test
+	分级变量——可以视作离散化之后的连续变量
+	连续变量——
+	连续时序变量——
+
+	分类与分级
+	分类与连续
+
+
+
+
+
+xgboost 怎么处理缺失值
+
+
+
+	
+
+
+k-s test
+
+资产组合理论提到，在资产中加入一个负相关因子，会提升组合的sharp。（复习证明）
+	所以特征选择的时候真的需要用卡方来找到最相关的或者是不相关的吗？怎么用更合理？能不能找到类似sharp的index
+
+
+
+# notes for reinforcement learning
+
+decision Hypo: All goals can be described by the maximisation of expected cumulative reward
+
+markov hypo: future info is unrelated with history info given the status right now (is it Proper???)
+
+complete info Hypo: environment status is available to everyone.
+partially observable MDP
+
+agent : 
+	policy : a map from state to action. ——— find best action for each state.
+	value func : evaluate future return for states. —— map status to rewards.
+	model : predict the environment. including two parts, state and reward.
+	Step by step: 
+		find a model————model predicts environment's State and Reward.————Rewards can be counted by Value Func given states.
+
+用MDP需要考虑到
