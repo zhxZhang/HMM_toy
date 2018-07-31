@@ -5,6 +5,7 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 import os
 import math
+from copy import deepcopy
 import types
 # import missingno as mn
 import lightgbm as lgb
@@ -28,19 +29,20 @@ def _is_category(seri):
     if _is_nan(seri[0]):  seri = seri.dropna()
     value = seri.values[0]
     # if exist NaN, Int also be converted to Float64
-    if _is_str(value) or _is_int(value) or value % 1 == 0:  return True
-    else:  return False
+    if _is_str(value) or _is_int(value) or value % 1 == 0: return True
+    else: return False
 
 def _value_counts(seri, norm=True):
-    # Inputs: Series
     val_count = dict(seri.value_counts(normalize=norm))
     num_cat = len(val_count.keys())
     return val_count, num_cat
 
-def _is_unbalance(data):
-    # Inputs: Series / Dict
-    values = dict(data).values()
+def _is_unbalance(seri_or_dict):
+    values = dict(seri_or_dict).values()
     return True if max(values) / min(values) < 15 else False
+
+# def _fill_num(seri, mode="", change_to=None):
+#     name = "_".join(['NA', seri.name, mode])
 
 def _fillna_special_num(seri, name="", fill_modes=[""], change_to=[np.NaN]):
     df = seri.to_frame(name)
@@ -98,11 +100,7 @@ class EDA(object):
         self.raw_data = pd.read_csv(csv_path)
         self.num_row, self.num_col = self.raw_data.shape
 
-        print('file path:', csv_path)        
-        print('shape of df: row %d, col %d .' % (self.num_row, self.num_col))
-
     def na_detect(self):
-        print('NA Detect...')
         # NA percent & NA cols
         na_stat = self.raw_data.isnull().sum()/self.num_row
         var_na = na_stat[na_stat > 0].index
@@ -113,6 +111,9 @@ class EDA(object):
         self.na_stat = na_stat
         self.var_na = var_na
 
+    def _init_var_info(self):
+        return 0
+
     def assert_f_type(self):
         # Divide into Category / Numerical
         for f in self.raw_data.columns:
@@ -121,9 +122,9 @@ class EDA(object):
                 self.cat_var_info[f]['f_type'] = 'ORIGIN'
             else:
                 self.num_var_info[f] = dict.fromkeys(EDA.VAR_INFO, None)
+                self.num_var_info[f]['f_type'] = 'ORIGIN'
 
     def assert_unbalance(self):
-        print('Assert unbalance feature...')
         for f in self.cat_var_info.keys():
             val_freq, num_cat = _value_counts(self.raw_data[f])
             self.cat_var_info[f]['value_count'] = val_freq
@@ -155,7 +156,7 @@ class EDA(object):
             # update cat/num var_info
             is_cat = col in self.cat_var_info.keys()
             if is_cat:
-                self.cat_var_info.update(dict.fromkeys(add_vars, self.cat_var_info[col]))
+                self.cat_var_info.update(dict.fromkeys(add_vars, deepcopy(self.cat_var_info[col])))
                 for var in add_vars:
                     val_freq, _ = _value_counts(train_df[var])
                     self.cat_var_info[var]['value_count'] = val_freq
@@ -183,7 +184,16 @@ class EDA(object):
                 del data_df[col]
         return data_df
 
-    def preprocess(self, one_hot=False, save_to=""):
+    def preprocess(self,ap_train_path, one_hot=False, save_to=""):
+        self.read_file(ap_train_path)
+        print('file path:', ap_train_path)
+        print('shape of df: row %d, col %d .' % (self.num_row, self.num_col))
+        print('NA Detect...')
+        self.na_detect()
+        print('Count feature type...')
+        self.assert_f_type()
+        print('Assert unbalance feature...')
+        self.assert_unbalance()
         print('****** Pre process data *******')
         train_data = self.raw_data
         print('category var int encoding...')
@@ -256,11 +266,6 @@ if __name__ == "__main__":
     test_path = folder + '/raw_data/application_test.csv'
 
     eda = EDA()
-    eda.read_file(ap_train_path)
-    eda.na_detect()
-    print('Count feature type...')
-    eda.assert_f_type()
-    eda.assert_unbalance()
-    eda.preprocess(one_hot=True, save_to='d:/pre_process_nontree.csv')
+    eda.preprocess(ap_train_path=ap_train_path, one_hot=True, save_to='d:/pre_process_nontree.csv')
 
     # lgb_baseline(eda.raw_data, floder)
