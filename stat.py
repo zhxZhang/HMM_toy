@@ -4,6 +4,7 @@ import numpy as np
 import seaborn as sns
 import matplotlib.pyplot as plt
 import os
+import math
 import types
 # import missingno as mn
 import lightgbm as lgb
@@ -13,13 +14,22 @@ import lightgbm as lgb
 def chi_square_test(x, y):
     return 0
 
+def _is_str(input_):
+    return type(input_) == type('str')
+
+def _is_int(input_):
+    return type(input_) == type('1')
+
+def _is_nan(input_):
+    if _is_str(input_): return False
+    else: return math.isnan(input_)
+
 def _is_category(seri):
-    if seri[0] == np.NaN: 
-        seri = seri.dropna()
-    # if exist NaN, Int will be converted to Float64
-    if type(seri[0]) is type('str'): return True
-    if seri[0] % 1 == 0: return True
-    else: return False
+    if _is_nan(seri[0]):  seri = seri.dropna()
+    value = seri.values[0]
+    # if exist NaN, Int also be converted to Float64
+    if _is_str(value) or _is_int(value) or value % 1 == 0:  return True
+    else:  return False
 
 def _value_counts(seri, norm=True):
     # Inputs: Series
@@ -74,10 +84,11 @@ class EDA(object):
         self.valid = None
         self.test = None
 
-        self.var_unbalance = []
-        self.var_na_add = []
         self.cat_var_info = {}
         self.num_var_info = {}
+        self.var_high_dim = {}
+
+        self.var_unbalance = []
 
         self.is_na = None
         self.na_stat = None
@@ -103,10 +114,11 @@ class EDA(object):
         self.var_na = var_na
 
     def assert_f_type(self):
-        print('Count feature type...')
+        # Divide into Category / Numerical
         for f in self.raw_data.columns:
             if _is_category(self.raw_data[f]):
                 self.cat_var_info[f] = dict.fromkeys(EDA.VAR_INFO, None)
+                self.cat_var_info[f]['f_type'] = 'ORIGIN'
             else:
                 self.num_var_info[f] = dict.fromkeys(EDA.VAR_INFO, None)
 
@@ -120,9 +132,6 @@ class EDA(object):
                 self.var_unbalance.append(f)
 
     def _cat_int_encoding(self, train_df):
-        print('category var int encoding...')
-        # Int encoding for cat
-        # Replaced TrainSet
         if not self.cat_var_info:
             raise ValueError
         for col in self.cat_var_info.keys():
@@ -132,7 +141,6 @@ class EDA(object):
         return train_df
 
     def _na_fill(self, train_df):
-        print('Fill NA...')
         for col in self.var_na:
             add_vars = []
             # NA - expectation, 999.
@@ -147,7 +155,6 @@ class EDA(object):
             # update cat/num var_info
             is_cat = col in self.cat_var_info.keys()
             if is_cat:
-                print(col)
                 self.cat_var_info.update(dict.fromkeys(add_vars, self.cat_var_info[col]))
                 for var in add_vars:
                     val_freq, _ = _value_counts(train_df[var])
@@ -155,27 +162,38 @@ class EDA(object):
                     self.cat_var_info[var]['f_type'] = 'NA_DERIVE'
         return train_df
 
+    def _assert_high_dem_cat(self):
+        self.var_high_dim = {col: self.cat_var_info[col]['num_cat'] 
+                            for col in self.cat_var_info.keys() 
+                            if self.cat_var_info[col]['num_cat'] > 1000}
+
+    def _is_high_dim(self, feature_name):
+        if not self.var_high_dim: self._assert_high_dem_cat()
+        return feature_name in self.var_high_dim.keys()
+
+    def _one_hot_encoding(self, data_df, target_col, del_origin=True):
+        for col in target_col:
+            is_na_derive = self.cat_var_info[col]['f_type'] == 'NA_DERIVE'
+            is_high_dim = self._is_high_dim(col)
+            if is_na_derive or is_high_dim:  
+                continue
+            add_df = _one_hot(data_df[col], dummy_na=True)
+            data_df = pd.concat([data_df, add_df], axis=1)
+            if del_origin:
+                del data_df[col]
+        return data_df
+
     def preprocess(self, one_hot=False, save_to=""):
         print('****** Pre process data *******')
         train_data = self.raw_data
-        # Int encoding - Rep DF
-        train_data = self._cat_int_encoding(train_data)
-        # Fill NA - Add DF
-        train_data = self._na_fill(train_data)
-
+        print('category var int encoding...')
+        train_data = self._cat_int_encoding(train_data)  #Rep DF
+        print('Fill NA...')
+        train_data = self._na_fill(train_data)  # Add DF
         if one_hot:
             print('one hot encoding...')
-            for col in self.cat_var_info.keys():
-                if self.cat_var_info[col]['f_type'] == 'NA_DERIVE': 
-                    continue
-                if self.cat_var_info[col]['num_cat'] > 1000:
-                    print('continue ',self.cat_var_info[col]['num_cat'])
-                    continue
-                print(self.cat_var_info[col]['num_cat'])
-                add_df = _one_hot(train_data[col], dummy_na=True)
-                train_data = pd.concat([train_data, add_df], axis=1)
-                del train_data[col]
-        print('shape of train: ', train_data.shape)
+            train_data = self._one_hot_encoding(train_data, self.cat_var_info.keys())
+        print('save preprocess to ' + save_to + '...')
         train_data.to_csv(save_to)
 
 
@@ -240,6 +258,7 @@ if __name__ == "__main__":
     eda = EDA()
     eda.read_file(ap_train_path)
     eda.na_detect()
+    print('Count feature type...')
     eda.assert_f_type()
     eda.assert_unbalance()
     eda.preprocess(one_hot=True, save_to='d:/pre_process_nontree.csv')
