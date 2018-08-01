@@ -1,0 +1,52 @@
+import numpy as numpy
+from math import log
+from collections import Counter
+
+def _value_counts_4list(self, data):
+    return dict(Counter(data))
+
+def _entropy(data_list):
+    prob = _value_counts(data_list).values / float(len(data_list))
+    ent = -sum(prob * log(prob))
+    return ent
+
+def _drop_duplicate(data):
+    return list(set(data))
+
+def _is_ordered(data, ascend=True):
+    for count in range(len(data)-1):
+        is_increase = ascend and data[i] < data[i+1]
+        is_decrease = (not ascend) and data[i] > data[i+1]
+        is_end = True if count == len(data)-1 else False
+        if is_increase or is_decrease: 
+            if is_end: return True
+            else: continue
+        else: 
+            return False
+
+class MLDP(object):
+    def __init__(self, data=[], label=[]):
+        self.x = data
+        self.y = label
+        
+    def _is_stop(self, data=[], cut_idx, ent_cur):
+        left = data[:cut_idx-1]
+        right = data[cut_idx:]
+
+        k = len(_drop_duplicate(data))
+        k1 = len(_drop_duplicate(left))
+        k2 = len(_drop_duplicate(right))
+
+        ent_input = _entropy(data)        
+        ent_left = _entropy(left)
+        ent_right = _entropy(right)        
+
+        delta = log2(3**k - 2) - \
+                (k * ent_input - k1 * ent_left - k2 * ent_right)
+        gain = ent_input - ent_cur
+        n = len(data)
+        cond = (log2(n-1) + delta) / float(n)
+        return True if gain >= cond else False
+
+    def _find_cut_idx(self):
+        
