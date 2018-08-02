@@ -1,52 +1,117 @@
-import numpy as numpy
+import numpy as np
 from math import log
 from collections import Counter
 
-def _value_counts_4list(self, data):
+def _value_counts_4list(data):
     return dict(Counter(data))
 
-def _entropy(data_list):
-    prob = _value_counts(data_list).values / float(len(data_list))
+def _entropy(list_):
+    prob = _value_counts(list_).values / float(len(list_))
     ent = -sum(prob * log(prob))
     return ent
 
 def _drop_duplicate(data):
     return list(set(data))
 
-def _is_ordered(data, ascend=True):
-    for count in range(len(data)-1):
+def _is_sorted(data, ascend=True):
+    for i in range(len(data)-1):
         is_increase = ascend and data[i] < data[i+1]
         is_decrease = (not ascend) and data[i] > data[i+1]
-        is_end = True if count == len(data)-1 else False
-        if is_increase or is_decrease: 
-            if is_end: return True
-            else: continue
-        else: 
-            return False
+        if is_increase or is_decrease: continue 
+        else: return False
+    else: return True
+
+def _pair_sort(x, y):
+    indice = np.argsort(x)
+    return x[indice], y[indice]
 
 class MLDP(object):
+    # feed List of numerical Feature and Label, A map of dict{category:[float,float]} and changed Feature back.
     def __init__(self, data=[], label=[]):
-        self.x = data
-        self.y = label
-        
-    def _is_stop(self, data=[], cut_idx, ent_cur):
-        left = data[:cut_idx-1]
-        right = data[cut_idx:]
+        if len(data) != len(label):
+            raise ValueError
+        input_, label = _pari_sort(data, label)
+        self.length = len(input_)
+        self.data = data
+    
+    def discretize_feature(self, input_, label):
+        cut_record = self._find_cut_record(input_=input_, label=label)
+        cut_num = [(input_[idx-1] + input_[idx]) / 2
+                       for idx in range(cut_record)]
+        cut_num = [-float('inf')] + cut_num + [float('inf')]
+        map_ = {str(i): [cut_num[i], cut_num[i+1]] 
+                    for i in range(len(cut_num) - 1)}
+        for num in self.data:
+            for i in range(len(cut_num)-1):
+                if cut_num[i] < num < cut_num[i+1]:
+                    num = i
+                else:
+                    continue
+        return self.x, map_
 
-        k = len(_drop_duplicate(data))
+    def _find_cut_idx(self, input_=[], label=[], ent_init=9999):
+        # Find best CUT position in a Given Input
+        len_in = len(input_)
+        ent_cur = ent_init
+        cut_idx = None
+        is_cut = False
+
+        for i in range(len_in - 1):
+            if input_[i] == input_[i+1]:
+                continue
+            num_cut = (input_[i] + input_[i+1]) / 2.0
+            len_left = i + 1
+            weight_left = len_left / float(len_in)
+            weight_right = 1 - weight_left
+            ent_div = weight_left * _entropy(label[0: len_left]) + \
+                      weight_right * _entropy(label[len_left: len_in])
+            if ent_div < ent_cur:
+                ent_cur = ent_div
+                cut_idx = i + 1
+                is_cut = True
+
+        is_stop = self._is_stop(label, cut_idx, ent_cur):
+        is_change = is_cut and not is_stop
+        return is_change, cut_idx
+
+    def _is_stop(self, label=[], cut_idx, ent_cur):
+        left = label[:cut_idx-1]
+        right = label[cut_idx:]
+
+        k = len(_drop_duplicate(label))
         k1 = len(_drop_duplicate(left))
         k2 = len(_drop_duplicate(right))
 
-        ent_input = _entropy(data)        
+        ent_input = _entropy(label)        
         ent_left = _entropy(left)
-        ent_right = _entropy(right)        
+        ent_right = _entropy(right)      
 
         delta = log2(3**k - 2) - \
                 (k * ent_input - k1 * ent_left - k2 * ent_right)
+
         gain = ent_input - ent_cur
-        n = len(data)
+        n = len(label)
         cond = (log2(n-1) + delta) / float(n)
         return True if gain >= cond else False
 
-    def _find_cut_idx(self):
-        
+    def _find_cut_record(self, low=0, up=self.length-1, input_=[], label=[], cut_record=[]):
+        if up-low <= 1:
+            return cut_record
+        x = input_[low: up]
+        y = label[low: up]
+        is_stop, cut_idx = self._find_cut_idx(x, y)
+        if is_stop:
+            return cut_record
+        cut_record.append(low + cut_idx)
+        cut_record.sort()
+        left_cut_record = self._find_cut_record(low=low, 
+                                                up=low + cut_idx, 
+                                                input_=input_, 
+                                                label=label,
+                                                cut_record=cut_record)
+        right_cut_record = self._find_cut_record(low=low + cut_idx, 
+                                                 up=up,
+                                                 input_=input_, 
+                                                 label=label,
+                                                 cut_record=cut_record)
+        return left_cut_record + right_cut_record
