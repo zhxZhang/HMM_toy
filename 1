@@ -1,0 +1,188 @@
+import os
+import sys
+import datahelper.datloader as helper
+
+# config file path
+config_fname = sys.argv[1]
+
+config_dict=helper.load_config(config_fname)
+resource_folder = config_dict['resource_folder'] + '/'
+
+proc_data_folder = os.path.dirname(config_dict['train_data'])
+if not os.path.isdir(proc_data_folder):
+    os.makedirs(proc_data_folder)
+
+def process_file(jar_fname, stopword_filename, in_filename, out_filename):
+    os.system("java -jar "+ jar_fname + " " + stopword_filename + " " + in_filename + " " + out_filename)
+
+print "##################################################"
+print "## Preprocess(clean& word segment) raw D2C text ##"
+print "##################################################"
+print
+
+print "processing training data..."
+process_file(resource_folder + config_dict['d2c_preprocess_jar_fname'], \
+             resource_folder + config_dict['d2c_stopword_fname'],       \
+             config_dict['raw_train_data'],                             \
+             config_dict['train_data'])
+
+print "processing testing data..."
+process_file(resource_folder + config_dict['d2c_preprocess_jar_fname'], \
+             resource_folder + config_dict['d2c_stopword_fname'],       \
+             config_dict['raw_test_data'],                              \
+             config_dict['test_data'])
+
+
+#print "processing unsup data..."
+#process_file(resource_folder + config_dict['d2c_preprocess_jar_fname'], \
+             #resource_folder + config_dict['d2c_stopword_fname'],       \
+             #config_dict['raw_unsup_data'],                             \
+             #config_dict['unsup_data'])
+
+print "Done!"
+
+
+
+import os
+import sys
+import datahelper.datloader as helper
+
+# get config file path
+config_fname = sys.argv[1]
+
+config_dict=helper.load_config(config_fname)
+resource_folder = config_dict['resource_folder'] + '/'
+
+print "###############################################"
+print "## Create dictonary & D2C tagger config file ##"
+print "###############################################"
+print
+
+print "loading training data..."
+sentences, tr_y = helper.load_data_and_labels(config_dict['train_data'])
+te_sentences, te_y = helper.load_data_and_labels(config_dict['test_data'])
+sentences = sentences + te_sentences
+
+num_category = max(max(tr_y), max(te_y)) + 1
+
+sentence_lens = [len(sent) for sent in sentences]
+print "max length of documents: ", max(sentence_lens)
+print "min length of documents: ", min(sentence_lens)
+print "avg length of documents: ", float(sum(sentence_lens))/len(sentences)
+
+print "creating vocabulary..."
+vocabulary, vocabulary_inv = helper.build_vocab(sentences, max_vocab_len = config_dict['max_vocab_len'])
+
+dict_folder = os.path.dirname(resource_folder + config_dict['d2c_dict_fname'])
+if not os.path.isdir(dict_folder):
+    os.makedirs(dict_folder)
+
+helper.json_save_vocab(vocabulary, resource_folder + config_dict['d2c_dict_fname'])
+helper.json_save_vocab(vocabulary_inv, resource_folder + config_dict['d2c_dict_fname']+'_inv')
+
+print "Dictonary is created in '"+resource_folder+config_dict['d2c_dict_fname'] + "'"
+
+print "write D2C tagger config file in java..."
+with open(resource_folder+config_dict['lang']+"/d2c_tagger_config.txt", 'w') as f:
+    f.write("###################################################################\n")
+    f.write("# This is an auto-generated configure file for D2C tagger in java #\n")
+    f.write("###################################################################\n\n")
+
+    f.write("lang: "+config_dict['lang']+"\n")
+    f.write("num_category: "+str(num_category)+"\n")
+    f.write("doc_maxlen: "+str(config_dict['doc_maxlen'])+"\n")
+    f.write("NULL_MARK: "+helper.NULL_MARK+"\n")
+    f.write("UNK_MARK: "+helper.UNK_MARK+"\n")
+
+    f.write("\n# ----------------------------------------------- #")
+    f.write("\n# The following paths should be carefully checked #")
+    f.write("\n# ----------------------------------------------- #\n")
+
+    f.write("\n# stop word file path\n")
+    f.write("# this should be relative path in java tagger project\n")
+    f.write("d2c_stopword_fname: "+config_dict['d2c_stopword_fname']+"\n")
+
+    f.write("\n# dictonary file path\n")
+    f.write("# this should be relative path in java tagger project\n")
+    f.write("d2c_dict_fname: "+config_dict['d2c_dict_fname']+"\n")
+    
+    f.write("\n# tesorflow pb type model file path\n")
+    f.write("# this should be relative path in java tagger project\n")
+    f.write("d2c_tfmodel_fname: "+config_dict['d2c_tfmodel_fname']+"\n")
+
+    f.write("\n# index to category for d2c file path\n")
+    f.write("# this should be relative path in java tagger project\n")
+    f.write("d2c_ind2cat_fname: "+config_dict['d2c_ind2cat_fname']+"\n")
+
+print "D2C tagger config file is created in " + config_dict['lang'] + "/d2c_tagger_config.txt'"
+print "done!"
+
+
+import os
+import sys
+import datahelper.datloader as helper
+import datahelper.dataset_utils as data_helper
+import tensorflow as tf
+
+# config file path
+config_fname = sys.argv[1]
+
+print "##################################################"
+print "## Make tensorflow type D2C train/test/val data ##"
+print "##################################################"
+print
+
+# load configure file
+config_dict= helper.load_config(config_fname)
+resource_folder = config_dict['resource_folder'] + '/'
+
+print "loading dictonary..."
+vocabulary = helper.json_load_vocab(resource_folder + config_dict['d2c_dict_fname'])
+
+# load data
+print "loading train&test data..."
+x_train, y_train, x_test, y_test, _ =  helper.load_data(config_dict['train_data'], config_dict['test_data'],\
+                                                        sequence_length=config_dict['doc_maxlen'], \
+                                                        vocabulary = vocabulary, padding = True)
+# the number of classes
+num_category = max(max(y_train), max(y_test)) + 1
+# num_category = 121
+
+print "splitting train&val data..."
+x_train, y_train, x_val, y_val = helper.data_split(x_train, y_train, config_dict['train_val_split'])
+
+print "converting train data..."
+tf_data_folder = os.path.dirname(config_dict['tf_train_data'])
+if not os.path.isdir(tf_data_folder):
+    os.makedirs(tf_data_folder)
+# convert training data
+data_helper.convert_tokens_and_labels(x_train, y_train, config_dict['tf_train_data'], num_category)
+
+print "converting test data..."
+data_helper.convert_tokens_and_labels(x_test, y_test, config_dict['tf_test_data'], num_category)
+
+print "converting val data..."
+data_helper.convert_tokens_and_labels(x_val, y_val, config_dict['tf_val_data'], num_category)
+
+# get the number of classes of training and test data respectively
+nc_train = data_helper.get_tfrecord_classes_counts(config_dict['tf_train_data'])
+nc_test = data_helper.get_tfrecord_classes_counts(config_dict['tf_test_data'])
+print ("maoxue nc_train  %d \t"%(nc_train))
+print ("maoxue nc_test  %d \t"%(nc_test))
+
+# If test class num is greater than train class num
+if nc_test > nc_train:
+   raise ValueError("Train category number (%d) which is small than test category (%d)" %
+                     (nc_train, nc_test))
+
+# # load unlabelled data
+# print "loading unsupervised data..."
+# x_unsup = helper.load_unsup_data(config_dict['unsup_data'], config_dict['doc_maxlen'], vocabulary=vocabulary)
+#
+# # convert unlabelled data
+# print "converting unsupervised data..."
+# data_helper.convert_tokens(x_unsup, config_dict['tf_unsup_data'])
+#
+# print "Done!"
+
+
