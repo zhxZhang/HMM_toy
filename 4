@@ -1,0 +1,233 @@
+from __future__ import absolute_import
+from __future__ import division
+from __future__ import print_function
+
+import numpy as np
+import tensorflow as tf
+import os, sys
+from src.vat_distributed_train2 import VAT
+
+FLAGS = tf.app.flags.FLAGS
+
+# define the parameters
+tf.app.flags.DEFINE_string('config', "configure/config_sample.txt", "config file path")
+tf.app.flags.DEFINE_string('cost_type', 'at', "{base, at, vat, vatent}")
+tf.app.flags.DEFINE_string('model_method', 'cnn', "{cnn, bilstm}")
+tf.app.flags.DEFINE_string('model_path', 'model/', "saved model path")
+tf.app.flags.DEFINE_string('model_restore_path', None, "restore model path")
+tf.app.flags.DEFINE_string('optimizer', 'adam', "{adam, sgd, adadelta}")
+tf.app.flags.DEFINE_string('pretrain_word2vec_path', None, "pretrain word vector binary file name")
+tf.app.flags.DEFINE_string('log_dir', "logs/", "log dir")
+tf.app.flags.DEFINE_string('lr_decay_method', None, "{None, exp}")
+
+# train for num_epochs
+tf.app.flags.DEFINE_integer('num_epochs', 200, "the number of epochs for training")
+tf.app.flags.DEFINE_integer('batch_size', 64, "the number of examples in a batch")
+tf.app.flags.DEFINE_integer('test_batch_size', 100, "the number of examples in a batch")
+tf.app.flags.DEFINE_integer('ul_batch_size', 128, "the number of unlabeled examples in a batch")
+tf.app.flags.DEFINE_integer('embedding_size', 256, "embedding size")
+tf.app.flags.DEFINE_integer('lstm_hidden_units', 256, "lstm hidden units size")
+tf.app.flags.DEFINE_integer('softmax_hidden_units', 128, "softmax hidden units size")
+tf.app.flags.DEFINE_integer('init_weights_seed', 1234,   "initial weights random seed")
+
+# parameter that controls Virtual Adversarial training
+tf.app.flags.DEFINE_float('vat_epsilon', 0.5, "epsilon for at/vat")
+tf.app.flags.DEFINE_float('vat_lambda', 1, "lambda for at/vat")
+tf.app.flags.DEFINE_float('dropout_keep_prob', 0.8, "dropout keep prob for training")
+tf.app.flags.DEFINE_float('word_dropout_keep_prob', 0.9, "word dropout keep prob for training")
+tf.app.flags.DEFINE_float('l2_reg_lambda', 1e-10, "L2 reg lambda")
+tf.app.flags.DEFINE_float('moving_average_decay', 0.9999, "moving average decay")
+# early stop condition
+tf.app.flags.DEFINE_float('early_stop_patience', 50, "Early stop patience")
+# initial learning rate
+tf.app.flags.DEFINE_float('start_learning_rate', None, "start learning rate")
+
+# whether to log operation placement on which device
+tf.app.flags.DEFINE_bool('log_device_placement', False, "log device placement")
+
+# FLAGS for distributed tensorflow
+tf.app.flags.DEFINE_string('job_name', '', 'One of "ps", "worker"')
+tf.app.flags.DEFINE_string('ps_hosts', '',
+                           """Comma-separated list of hostname:port for the """
+                           """parameter server jobs. e.g. """
+                           """'machine1:2222,machine2:1111,machine2:2222'""")
+tf.app.flags.DEFINE_string('worker_hosts', '',
+                           """Comma-separated list of hostname:port for the """
+                           """worker jobs. e.g. """
+                           """'machine1:2222,machine2:1111,machine2:2222'""")
+
+# only the task_id 0 is the chief task
+tf.app.flags.DEFINE_integer('task_id', 0, 'Task ID of the worker/replica running the training.')
+tf.app.flags.DEFINE_integer('replicas_to_aggregate', 2, "number of replicas to aggregate in averaging gradients")
+tf.app.flags.DEFINE_bool('enable_non_chief_worker_logs', False, "log device placement")
+
+
+def main(arg):
+    np.random.seed(seed=FLAGS.init_weights_seed)
+    tf.set_random_seed(np.random.randint(1234))
+    
+    assert FLAGS.job_name in ['ps', 'worker'], 'job_name must be ps or worker'
+
+    # Extract all the hostnames for the ps and worker jobs to construct the
+    # cluster spec.
+    ps_hosts = FLAGS.ps_hosts.split(',')
+    worker_hosts = FLAGS.worker_hosts.split(',')
+    tf.logging.info('PS hosts are: %s' % ps_hosts)
+    tf.logging.info('Worker hosts are: %s' % worker_hosts)
+    
+    cluster_spec = tf.train.ClusterSpec({'ps': ps_hosts,
+                                       'worker': worker_hosts})
+    
+    if not FLAGS.enable_non_chief_worker_logs:
+        if FLAGS.job_name != 'worker' or FLAGS.task_id != 0:
+            sys.stdout = open(os.devnull, 'w')
+
+    # define the server
+    server = tf.train.Server(
+           cluster_spec,
+           job_name=FLAGS.job_name,
+           task_index=FLAGS.task_id)
+    
+    if FLAGS.job_name == 'ps':
+        with tf.device('/cpu:0'):
+            # `ps` jobs wait for incoming connections from the workers.
+            server.join()
+    else:
+        # workers
+        model = VAT(FLAGS)
+        model.train(server.target, cluster_spec)
+
+# run the main function
+if __name__ == "__main__":
+    tf.app.run()
+
+
+上面是train distribute
+下面是train
+
+from __future__ import absolute_import
+from __future__ import division
+from __future__ import print_function
+
+import numpy as np
+import tensorflow as tf
+from src.vat_train import VAT
+
+FLAGS = tf.app.flags.FLAGS
+
+# define the parameters
+tf.app.flags.DEFINE_string('device', '/cpu:0', "device")
+
+tf.app.flags.DEFINE_string('config', "configure/config_sample.txt", "config file path")
+tf.app.flags.DEFINE_string('cost_type', 'at', "{base, at, vat, vatent}")
+tf.app.flags.DEFINE_string('model_method', 'cnn', "{cnn, bilstm}")
+tf.app.flags.DEFINE_string('model_path', 'model/', "saved model path")
+tf.app.flags.DEFINE_string('model_restore_path', None, "restore model path")
+tf.app.flags.DEFINE_string('optimizer', 'adam', "{adam, sgd, adadelta}")
+tf.app.flags.DEFINE_string('pretrain_word2vec_path', None, "pretrain word vector binary file name")
+tf.app.flags.DEFINE_string('log_dir', "logs/", "log dir")
+tf.app.flags.DEFINE_string('lr_decay_method', None, "{None, exp}")
+
+# train for num_epochs
+tf.app.flags.DEFINE_integer('num_epochs', 200, "the number of epochs for training")
+tf.app.flags.DEFINE_integer('batch_size', 64, "the number of examples in a batch")
+tf.app.flags.DEFINE_integer('test_batch_size', 100, "the number of examples in a batch")
+tf.app.flags.DEFINE_integer('ul_batch_size', 128, "the number of unlabeled examples in a batch")
+tf.app.flags.DEFINE_integer('embedding_size', 256, "embedding size")
+tf.app.flags.DEFINE_integer('lstm_hidden_units', 256, "lstm hidden units size")
+tf.app.flags.DEFINE_integer('softmax_hidden_units', 128, "softmax hidden units size")
+tf.app.flags.DEFINE_integer('init_weights_seed', 1234,   "initial weights random seed")
+
+# parameter that controls Virtual Adversarial training
+tf.app.flags.DEFINE_float('vat_epsilon', 0.5, "epsilon for at/vat")
+tf.app.flags.DEFINE_float('vat_lambda', 1, "lambda for at/vat")
+tf.app.flags.DEFINE_float('dropout_keep_prob', 0.8, "dropout keep prob for training")
+tf.app.flags.DEFINE_float('word_dropout_keep_prob', 0.8, "word dropout keep prob for training")
+tf.app.flags.DEFINE_float('l2_reg_lambda', 0.001, "L2 reg lambda")
+tf.app.flags.DEFINE_float('moving_average_decay', 0.9999, "moving average decay")
+
+# early stop condition
+tf.app.flags.DEFINE_float('early_stop_patience', 50, "Early stop patience")
+
+# initial learning rate
+tf.app.flags.DEFINE_float('start_learning_rate', None, "start learning rate")
+
+# whether to log operation placement on which device
+tf.app.flags.DEFINE_bool('log_device_placement', False, "log device placement")
+
+def main(arg):
+    np.random.seed(seed=FLAGS.init_weights_seed)
+    tf.set_random_seed(np.random.randint(1234))
+
+    model = VAT(FLAGS)
+    # train the model
+    model.train()
+
+# run the main function
+if __name__ == "__main__":
+    tf.app.run()
+val........
+
+from __future__ import absolute_import
+from __future__ import division
+from __future__ import print_function
+
+import numpy as np
+import tensorflow as tf
+from src.vat_train2 import VAT
+
+FLAGS = tf.app.flags.FLAGS
+
+# define the parameters
+tf.app.flags.DEFINE_string('device', '/cpu:0', "device")
+
+tf.app.flags.DEFINE_string('config', "configure/config_zx.txt", "config file path")
+tf.app.flags.DEFINE_string('cost_type', 'at', "{base, at, vat, vatent}")
+tf.app.flags.DEFINE_string('model_method', 'cnn', "{cnn, bilstm}")
+tf.app.flags.DEFINE_string('model_path', 'model/', "saved model path")
+tf.app.flags.DEFINE_string('model_restore_path', None, "restore model path")
+tf.app.flags.DEFINE_string('optimizer', 'adam', "{adam, sgd, adadelta}")
+tf.app.flags.DEFINE_string('pretrain_word2vec_path', None, "pretrain word vector binary file name")
+tf.app.flags.DEFINE_string('log_dir', "logs/", "log dir")
+tf.app.flags.DEFINE_string('lr_decay_method', None, "{None, exp}")
+
+# train for num_epochs
+tf.app.flags.DEFINE_integer('num_epochs', 200, "the number of epochs for training")
+tf.app.flags.DEFINE_integer('batch_size', 64, "the number of examples in a batch")
+tf.app.flags.DEFINE_integer('test_batch_size', 100, "the number of examples in a batch")
+tf.app.flags.DEFINE_integer('ul_batch_size', 128, "the number of unlabeled examples in a batch")
+tf.app.flags.DEFINE_integer('embedding_size', 256, "embedding size")
+tf.app.flags.DEFINE_integer('lstm_hidden_units', 256, "lstm hidden units size")
+tf.app.flags.DEFINE_integer('softmax_hidden_units', 128, "softmax hidden units size")
+tf.app.flags.DEFINE_integer('init_weights_seed', 1234,   "initial weights random seed")
+
+# parameter that controls Virtual Adversarial training
+tf.app.flags.DEFINE_float('vat_epsilon', 0.5, "epsilon for at/vat")
+tf.app.flags.DEFINE_float('vat_lambda', 1, "lambda for at/vat")
+tf.app.flags.DEFINE_float('dropout_keep_prob', 0.8, "dropout keep prob for training")
+tf.app.flags.DEFINE_float('word_dropout_keep_prob', 0.8, "word dropout keep prob for training")
+tf.app.flags.DEFINE_float('l2_reg_lambda', 0.001, "L2 reg lambda")
+tf.app.flags.DEFINE_float('moving_average_decay', 0.9999, "moving average decay")
+
+# early stop condition
+tf.app.flags.DEFINE_float('early_stop_patience', 50, "Early stop patience")
+
+# initial learning rate
+tf.app.flags.DEFINE_float('start_learning_rate', None, "start learning rate")
+
+# whether to log operation placement on which device
+tf.app.flags.DEFINE_bool('log_device_placement', False, "log device placement")
+
+def main(arg):
+    np.random.seed(seed=FLAGS.init_weights_seed)
+    tf.set_random_seed(np.random.randint(1234))
+
+    model = VAT(FLAGS)
+    # train the model
+    model.active_learning()
+    
+    #model.count_accuracy()
+
+# run the main function
+if __name__ == "__main__":
+    tf.app.run()
