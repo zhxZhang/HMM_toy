@@ -1,0 +1,133 @@
+config=configure/config_zh_new.txt      #config file path
+num_epochs=200                     #max epoch for pretraining
+embedding_size=384                  #word embedding dimension
+batch_size=64
+dropout_keep_prob=0.8
+word_dropout_keep_prob=0.8
+cost_type=base
+early_stop_patience=10
+lstm_hidden_units=256
+softmax_hidden_units=128
+pretrain_word2vec_path=/home/xue.mao/D2C_train_55/wiki_wordvec/wiki.zh.bin
+#pretrain_word2vec_path=/home/hlluo/xydu/mykr/pretrained_wordvec/SogouNews-wordvec256.bin
+#pretrain_word2vec_path=None
+
+l2_reg_lambda=0.001
+start_learning_rate=0.002
+lr_decay_method='exp'  #not use learning rate decay method
+
+#ul_batch_size
+#test_batch_size
+#vat_epsilon
+
+gpu_id=5
+devices=/gpu:$gpu_id
+model_method=cnn
+model_restore_path=None
+model_path=model1/base_$model_method-${lstm_hidden_units}x${softmax_hidden_units}-zh_pret
+logs_path=logs1/base_$model_method-${lstm_hidden_units}x${softmax_hidden_units}-zh_pret.log
+
+CUDA_VISIBLE_DEVICES=$gpu_id python -u train_shopping2C.py --config $config --device $devices --lstm_hidden_units $lstm_hidden_units --softmax_hidden_units $softmax_hidden_units --l2_reg_lambda $l2_reg_lambda --num_epochs $num_epochs --model_method $model_method --model_restore_path $model_restore_path --model_path $model_path --cost_type $cost_type --embedding_size $embedding_size --batch_size $batch_size --word_dropout_keep_prob $word_dropout_keep_prob --dropout_keep_prob $dropout_keep_prob --pretrain_word2vec_path $pretrain_word2vec_path --early_stop_patience $early_stop_patience --start_learning_rate $start_learning_rate --lr_decay_method $lr_decay_method > $logs_path &
+
+
+
+config=configure/config_jd.txt      #config file path           #1
+num_epochs=200                     #max epoch for pretraining
+embedding_size=384                  #word embedding dimension
+batch_size=64
+dropout_keep_prob=0.8
+word_dropout_keep_prob=0.8
+cost_type=base
+early_stop_patience=10
+lstm_hidden_units=256
+softmax_hidden_units=128
+pretrain_word2vec_path=/home/xue.mao/D2C_train_55/wiki_wordvec/wiki.zh.bin
+#pretrain_word2vec_path=/home/hlluo/xydu/mykr/pretrained_wordvec/SogouNews-wordvec256.bin
+#pretrain_word2vec_path=None
+
+l2_reg_lambda=0.001
+start_learning_rate=0.002
+lr_decay_method='exp'  #not use learning rate decay method
+
+#ul_batch_size
+#test_batch_size
+#vat_epsilon
+
+gpu_id=10               #2
+devices=/gpu:$gpu_id
+model_method=cnn
+model_restore_path=None
+model_path=model2/base_$model_method-${lstm_hidden_units}x${softmax_hidden_units}-zh_pret              #3
+logs_path=logs2/base_$model_method-${lstm_hidden_units}x${softmax_hidden_units}-zh_pret.log            #4
+
+CUDA_VISIBLE_DEVICES=$gpu_id python -u train_shopping2C.py --config $config --device $devices --lstm_hidden_units $lstm_hidden_units --softmax_hidden_units $softmax_hidden_units --l2_reg_lambda $l2_reg_lambda --num_epochs $num_epochs --model_method $model_method --model_restore_path $model_restore_path --model_path $model_path --cost_type $cost_type --embedding_size $embedding_size --batch_size $batch_size --word_dropout_keep_prob $word_dropout_keep_prob --dropout_keep_prob $dropout_keep_prob --pretrain_word2vec_path $pretrain_word2vec_path --early_stop_patience $early_stop_patience --start_learning_rate $start_learning_rate --lr_decay_method $lr_decay_method > $logs_path &
+
+
+
+config=configure/config_sum_121.txt      #config file path           #1
+num_epochs=200                     #max epoch for pretraining
+embedding_size=384                  #word embedding dimension
+batch_size=64
+dropout_keep_prob=0.8
+word_dropout_keep_prob=0.8
+cost_type=base
+early_stop_patience=10
+lstm_hidden_units=256
+softmax_hidden_units=128
+pretrain_word2vec_path=/home/xue.mao/D2C_train_55/wiki_wordvec/wiki.zh.bin
+#pretrain_word2vec_path=/home/hlluo/xydu/mykr/pretrained_wordvec/SogouNews-wordvec256.bin
+#pretrain_word2vec_path=None
+
+l2_reg_lambda=0.001
+start_learning_rate=0.002
+lr_decay_method='exp'  #not use learning rate decay method
+
+#ul_batch_size
+#test_batch_size
+#vat_epsilon
+
+gpu_id=5               #2
+devices=/gpu:$gpu_id
+model_method=cnn
+model_restore_path=None
+model_path=models1/base_$model_method-${lstm_hidden_units}x${softmax_hidden_units}-zh_pret              #3
+logs_path=logss1/base_$model_method-${lstm_hidden_units}x${softmax_hidden_units}-zh_pret.log            #4
+
+CUDA_VISIBLE_DEVICES=$gpu_id python -u train_shopping2C.py --config $config --device $devices --lstm_hidden_units $lstm_hidden_units --softmax_hidden_units $softmax_hidden_units --l2_reg_lambda $l2_reg_lambda --num_epochs $num_epochs --model_method $model_method --model_restore_path $model_restore_path --model_path $model_path --cost_type $cost_type --embedding_size $embedding_size --batch_size $batch_size --word_dropout_keep_prob $word_dropout_keep_prob --dropout_keep_prob $dropout_keep_prob --pretrain_word2vec_path $pretrain_word2vec_path --early_stop_patience $early_stop_patience --start_learning_rate $start_learning_rate --lr_decay_method $lr_decay_method > $logs_path &
+
+
+
+config=configure/config_val.txt      #config file path           #1
+num_epochs=200                     #max epoch for pretraining
+embedding_size=384                  #word embedding dimension
+batch_size=30
+dropout_keep_prob=0.8
+word_dropout_keep_prob=0.8
+cost_type=base
+early_stop_patience=10
+lstm_hidden_units=256
+softmax_hidden_units=128
+pretrain_word2vec_path=/home/xue.mao/D2C_train_55/wiki_wordvec/wiki.zh.bin
+#pretrain_word2vec_path=/home/hlluo/xydu/mykr/pretrained_wordvec/SogouNews-wordvec256.bin
+#pretrain_word2vec_path=None
+
+l2_reg_lambda=0.001
+start_learning_rate=0.002
+lr_decay_method='exp'  #not use learning rate decay method
+
+#ul_batch_size
+#test_batch_size
+#vat_epsilon
+
+gpu_id=$(python 7.3-find_free_gpu.py)              #2
+echo $gpu
+devices=/gpu:$gpu_id
+model_method=cnn
+model_restore_path=None
+model_path=models/base_$model_method-${lstm_hidden_units}x${softmax_hidden_units}-zh_pret              #3
+logs_path=logt/base_$model_method-${lstm_hidden_units}x${softmax_hidden_units}-zh_pret.log            #4
+
+CUDA_VISIBLE_DEVICES=$gpu_id python -u val.py --config $config --device $devices --lstm_hidden_units $lstm_hidden_units --softmax_hidden_units $softmax_hidden_units --l2_reg_lambda $l2_reg_lambda --num_epochs $num_epochs --model_method $model_method --model_restore_path $model_restore_path --model_path $model_path --cost_type $cost_type --embedding_size $embedding_size --batch_size $batch_size --word_dropout_keep_prob $word_dropout_keep_prob --dropout_keep_prob $dropout_keep_prob --pretrain_word2vec_path $pretrain_word2vec_path --early_stop_patience $early_stop_patience --start_learning_rate $start_learning_rate --lr_decay_method $lr_decay_method > $logs_path
+
+
+
